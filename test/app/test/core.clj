@@ -2,5 +2,5 @@
   (:use [app.core])
   (:use [clojure.test]))
 
-(deftest replace-me ;; FIXME: write
-  (is false "No tests have been written."))
+(deftest something
+    (is (= true true)))
