@@ -35,6 +35,16 @@
                        :account_id account_id
                        :selection_id selection_id})))
 
+(defn get-risk [bet-record]
+  (* (bet-record :amount)
+     (bet-record :rate)))
+
+(defn risk [selection_id]
+  (let [s (select selection (with bet)
+                  (where {:id selection_id}))]
+    (->> s first :bet
+         (map get-risk)
+         (reduce +))))
 
 (defn populate-db []
   (insert-sample-type-tree)
@@ -43,7 +53,7 @@
   (insert selection (values {:event_id 1 :selection_type_id 1}))
   (dotimes [_ 3] (insert-account 100.0)))
 
-(defn main []
+(defn -main []
   (try (println "DROPPING TABLES... " (drop-tables)) (catch Exception _))
   (println "CREATING TABLES... " (create-tables))
   (println "POPULATING DATABASE... " (populate-db))
