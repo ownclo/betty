@@ -1,11 +1,11 @@
 (ns app.db
   (use [korma.core :rename {belongs-to korma-belongs-to}]
+       app.db-schema
        korma.db)
   (require [clojure.java.jdbc :as jdbc])
   (require [clojure.string :as str]))
 
 (declare account bet selection event selection_type market_type event_type)
-(declare default-schema-if-none schema belongs-to)
 
 (defdb betty (postgres
                {:db "betty"
@@ -15,14 +15,12 @@
 ;; SCHEMA DESCRIPTION
 ;; Account, Bet and Selection are dynamically-changing entities.
 (defentity account
-  (schema [:amount "real default 0"])
-  (entity-fields :amount)
-  (has-many bet))  ; bet.account_id refers account.id
+  (schema [:amount "real not null"])
+  (has-many bet))  ; bet.account_id refers to account.id
 
 (defentity bet
   (schema [:amount "real not null"]
           [:rate "real not null"])
-  (entity-fields :amount :rate)
   (belongs-to account)  ; has account_id field
   (belongs-to selection))
 
@@ -32,6 +30,7 @@
   (belongs-to selection_type))
 
 (defentity event
+  (schema [:name "varchar(255)"])
   (belongs-to event_type)) ; or just 'event_type' string?
 
 ;; Market_Type, Selection_Type, Event_Type are representing
@@ -41,44 +40,22 @@
 ;; Another possibility is to support a mapping from selection
 ;; to the set of bets. This would be a more NoSQL-ish solution.
 (defentity selection_type
+  (schema [:name "varchar(255)"])
   (belongs-to market_type)
   (has-many selection))
 
 (defentity market_type
+  (schema [:name "varchar(255)"])
   (has-many selection_type)
   (belongs-to event_type))
 
 (defentity event_type
-  (schema)  ; that's needed for id spec generation
+  (schema [:name "varchar(255)"])
   (has-many market_type)
   (has-many event))
 
 
-;; HELPERS
-(defn- default-schema-if-none [ent]
-  (if-not (ent :schema)
-    (assoc ent :schema [[(ent :pk) "bigserial primary key"]])
-    ent))
-
-(defn- schema [ent & columns]
-  (-> ent
-      (default-schema-if-none)
-      (update-in [:schema] concat columns)))
-
-;; Override korma's belongs-to macro in order to add
-;; description to the :schema.
-(defmacro belongs-to [ent sub-ent & [opts]]
-  `(let [sub-name# ~(name sub-ent)
-         fk# (or (:fk ~opts)
-                 (str sub-name# "_id"))
-         desc# (str "int not null references " sub-name# "(id)")
-        ]
-     (-> ~ent
-         (default-schema-if-none)
-         (update-in [:schema] concat [[fk# desc#]])
-         (korma-belongs-to ~sub-ent ~opts))))
-
-
+;; DB initialization helpers
 ; XXX: order is important!
 (def tables [event_type
              market_type
@@ -102,3 +79,11 @@
 (defn drop-tables []
   (map (comp exec-raw jdbc/drop-table-ddl :name)
        (reverse tables)))
+
+(defn insert-sample-type-tree []
+  (let [eid (:id (insert event_type (values {:name "football"})))
+        mid (:id (insert market_type (values {:name "winloss"
+                                              :event_type_id eid})))]
+    (insert selection_type (values [{:name "win"  :market_type_id mid}
+                                    {:name "x"    :market_type_id mid}
+                                    {:name "loss" :market_type_id mid}]))))
