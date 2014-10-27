@@ -1,5 +1,4 @@
 (ns app.core
-  (use [korma.db :only [default-connection]])
   (use app.db)
   (use korma.core))
 
@@ -21,14 +20,13 @@
     (update account (set-fields {:amount new-amount})
             (where {:id account_id}))))
 
-; NOTE: subject to raw-exec optimisation
 ; TODO: handle nonexisting account
 (defn deposit [account_id amount]
-  (withdraw account_id (* -1 amount)))
+  (let [new-amount (raw (str "amount +" amount))]
+    (update account (set-fields {:amount new-amount}))))
 
 ;; XXX: Remember to do-bet within a transaction!
 (defn do-bet [rate amount account_id selection_id]
-  ; (assert (every? pos? [rate amount account_id selection_id]))
   (withdraw account_id amount)
   (insert bet (values {:rate rate
                        :amount amount
@@ -39,12 +37,24 @@
   (* (bet-record :amount)
      (bet-record :rate)))
 
+(defn risk-for-seq [bets]
+  (->> bets
+       (map get-risk)
+       (reduce +)))
+
 (defn risk [selection_id]
-  (let [s (select selection (with bet)
-                  (where {:id selection_id}))]
-    (->> s first :bet
-         (map get-risk)
-         (reduce +))))
+  (->> (where {:selection_id selection_id})
+       (select bet)
+       (risk-for-seq)))
+
+
+(defn insert-sample-type-tree []
+  (let [eid (:id (insert event_type (values {:name "football"})))
+        mid (:id (insert market_type (values {:name "winloss"
+                                              :event_type_id eid})))]
+    (insert selection_type (values [{:name "win"  :market_type_id mid}
+                                    {:name "x"    :market_type_id mid}
+                                    {:name "loss" :market_type_id mid}]))))
 
 (defn populate-db []
   (insert-sample-type-tree)

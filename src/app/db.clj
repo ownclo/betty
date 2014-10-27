@@ -79,11 +79,3 @@
 (defn drop-tables []
   (map (comp exec-raw jdbc/drop-table-ddl :name)
        (reverse tables)))
-
-(defn insert-sample-type-tree []
-  (let [eid (:id (insert event_type (values {:name "football"})))
-        mid (:id (insert market_type (values {:name "winloss"
-                                              :event_type_id eid})))]
-    (insert selection_type (values [{:name "win"  :market_type_id mid}
-                                    {:name "x"    :market_type_id mid}
-                                    {:name "loss" :market_type_id mid}]))))
